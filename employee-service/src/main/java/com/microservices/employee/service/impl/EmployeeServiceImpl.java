@@ -10,7 +10,10 @@ import com.microservices.employee.repository.EmployeeRepository;
 import com.microservices.employee.service.EmployeeService;
 import com.microservices.employee.service.FeignAPI;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import org.modelmapper.ModelMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -19,7 +22,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 @Service
 public class EmployeeServiceImpl implements EmployeeService {
-
+    Logger logger = LoggerFactory.getLogger(EmployeeServiceImpl.class);
     @Autowired
     private EmployeeRepository employeeRepository;
 
@@ -47,10 +50,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         return savedDto;
     }
 
-    @CircuitBreaker(name = "${spring.application.name}", fallbackMethod = "getDefaultDepartment")
+//    @CircuitBreaker(name = "${spring.application.name}", fallbackMethod = "getDefaultDepartment")
+    @Retry(name = "${spring.application.name}", fallbackMethod = "getDefaultDepartment")
     @Override
     public APIResponseDto getEmployeeById(long employeeId) {
-
+        logger.info("started getEmployeeById info log level ");
         Employee employee = employeeRepository.findById(employeeId).orElseThrow(() ->
                 new ResourceNotFoundException("Employee","id",employeeId));
 
@@ -82,6 +86,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         APIResponseDto apiResponseDto = new APIResponseDto();
         apiResponseDto.setEmployee(employeeDto);
         apiResponseDto.setDepartment(departmentDto);
+        logger.info("ended getEmployeeById info log level ");
 
         // returning both details
         return apiResponseDto;
@@ -89,6 +94,8 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     // fallback method
     public APIResponseDto getDefaultDepartment(long employeeId, Exception exception) {
+        logger.info("started getDefaultDepartment info log level ");
+
         Employee employee = employeeRepository.findById(employeeId).orElseThrow(() ->
                 new ResourceNotFoundException("Employee","id",employeeId));
 
@@ -108,6 +115,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         APIResponseDto apiResponseDto = new APIResponseDto();
         apiResponseDto.setEmployee(employeeDto);
         apiResponseDto.setDepartment(departmentDto);
+        logger.info("ended getDefaultDepartment info log level ");
 
         // returning both details
         return apiResponseDto;
