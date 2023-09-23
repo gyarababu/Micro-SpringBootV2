@@ -9,11 +9,13 @@ import com.microservices.employee.exception.ResourceNotFoundException;
 import com.microservices.employee.repository.EmployeeRepository;
 import com.microservices.employee.service.EmployeeService;
 import com.microservices.employee.service.FeignAPI;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 
 @Service
 public class EmployeeServiceImpl implements EmployeeService {
@@ -24,8 +26,15 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Autowired
     private ModelMapper modelMapper;
 
+//    @Autowired
+//    private RestTemplate restTemplate;
+
     @Autowired
-    private FeignAPI feignAPI;
+    private WebClient webClient;
+
+//    @Autowired
+//    private FeignAPI feignAPI;
+
     @Override
     public EmployeeDto saveEmployee(EmployeeDto employeeDto) {
 
@@ -38,6 +47,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         return savedDto;
     }
 
+    @CircuitBreaker(name = "${spring.application.name}", fallbackMethod = "getDefaultDepartment")
     @Override
     public APIResponseDto getEmployeeById(long employeeId) {
 
@@ -49,8 +59,23 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new DepartmentNotFoundException("Department","departmentCode",departmentCode);
         }
 
+        //resttemplate
+//        ResponseEntity<DepartmentDto> responseEntity = restTemplate
+//                .getForEntity("http://localhost:8081/api/departments/"
+//                        + employee.getDepartmentCode(), DepartmentDto.class);
+
+        // getting department details
+//        DepartmentDto departmentDto = responseEntity.getBody();
+
+        // webclient
+        DepartmentDto departmentDto = webClient.get()
+                .uri("http://localhost:8081/api/departments/" + employee.getDepartmentCode())
+                .retrieve()
+                .bodyToMono(DepartmentDto.class)
+                .block();
+
         // synchronous communication using feignClient and getting department details
-        DepartmentDto departmentDto = feignAPI.getDepartment(employee.getDepartmentCode());
+//        DepartmentDto departmentDto = feignAPI.getDepartment(employee.getDepartmentCode());
 
         EmployeeDto employeeDto = mapToDto(employee);
 
@@ -62,7 +87,33 @@ public class EmployeeServiceImpl implements EmployeeService {
         return apiResponseDto;
     }
 
-    // modelMapper entity to dto
+    // fallback method
+    public APIResponseDto getDefaultDepartment(long employeeId, Exception exception) {
+        Employee employee = employeeRepository.findById(employeeId).orElseThrow(() ->
+                new ResourceNotFoundException("Employee","id",employeeId));
+
+        String departmentCode = employee.getDepartmentCode();
+        if (departmentCode == null || departmentCode.isEmpty()) {
+            throw new DepartmentNotFoundException("Department","departmentCode",departmentCode);
+        }
+
+        // default department
+        DepartmentDto departmentDto = new DepartmentDto();
+        departmentDto.setDepartmentCode("RD001");
+        departmentDto.setDepartmentName("R&D Department");
+        departmentDto.setDepartmentDescription("Research and Development Department");
+
+        EmployeeDto employeeDto = mapToDto(employee);
+
+        APIResponseDto apiResponseDto = new APIResponseDto();
+        apiResponseDto.setEmployee(employeeDto);
+        apiResponseDto.setDepartment(departmentDto);
+
+        // returning both details
+        return apiResponseDto;
+    }
+
+        // modelMapper entity to dto
     private EmployeeDto mapToDto(Employee employee){
         EmployeeDto employeeDto = modelMapper.map(employee, EmployeeDto.class);
         return employeeDto;
