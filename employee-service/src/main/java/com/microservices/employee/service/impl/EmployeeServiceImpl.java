@@ -3,6 +3,7 @@ package com.microservices.employee.service.impl;
 import com.microservices.employee.dto.APIResponseDto;
 import com.microservices.employee.dto.DepartmentDto;
 import com.microservices.employee.dto.EmployeeDto;
+import com.microservices.employee.dto.OrganizationDto;
 import com.microservices.employee.entity.Employee;
 import com.microservices.employee.exception.DepartmentNotFoundException;
 import com.microservices.employee.exception.ResourceNotFoundException;
@@ -78,6 +79,12 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .bodyToMono(DepartmentDto.class)
                 .block();
 
+        OrganizationDto organizationDto = webClient.get()
+                .uri("http://localhost:8083/api/organizations/" + employee.getOrganizationCode())
+                .retrieve()
+                .bodyToMono(OrganizationDto.class)
+                .block();
+
         // synchronous communication using feignClient and getting department details
 //        DepartmentDto departmentDto = feignAPI.getDepartment(employee.getDepartmentCode());
 
@@ -86,6 +93,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         APIResponseDto apiResponseDto = new APIResponseDto();
         apiResponseDto.setEmployee(employeeDto);
         apiResponseDto.setDepartment(departmentDto);
+        apiResponseDto.setOrganization(organizationDto);
         logger.info("ended getEmployeeById info log level ");
 
         // returning both details
